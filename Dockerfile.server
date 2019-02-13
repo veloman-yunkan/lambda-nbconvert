@@ -1,0 +1,9 @@
+FROM nbconvert-base
+
+EXPOSE 8080
+
+COPY index.html /data/index.html
+COPY main.py /data/main.py
+
+WORKDIR /data
+ENTRYPOINT ["/usr/bin/python3", "main.py"]

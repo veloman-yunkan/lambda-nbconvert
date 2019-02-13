@@ -1,17 +1,5 @@
 import os
 import sys
-import ast
-import tempfile
-
-CURRENT_DIR = os.getcwd()
-BUILD_DIR = os.path.join(os.getcwd(), "build", "code")
-
-sys.path.append(CURRENT_DIR)
-sys.path.append(BUILD_DIR)
-
-os.environ['PYTHONPATH'] = os.environ['PYTHONPATH'] + ":" + CURRENT_DIR + ":" + BUILD_DIR
-
-
 
 
 import logging
@@ -90,7 +78,7 @@ def handler(event, context):
             }
         }
         return response
-    elif event['httpMethod'] == 'OPTIONS' and cors_enabled:
+    elif event['httpMethod'] == 'OPTIONS':
         response = {
             "statusCode": 200,
             "body": None,
@@ -98,7 +86,8 @@ def handler(event, context):
                 'Content-Type': 'application/json',
             }
         }
-        populate_cors(response)     
+        if cors_enabled:
+            populate_cors(response)     
         return response   
     else:
         request_body = json.loads(event["body"])
@@ -129,3 +118,36 @@ def handler(event, context):
             populate_cors(response)
 
         return response
+
+import http.server
+
+class HTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def sendResponse(self, response):
+        self.send_response(response['statusCode'])
+        for key,value in response['headers'].items():
+            self.send_header(key, value)
+        self.end_headers()
+        body = response['body']
+        if body is not None:
+            self.wfile.write(body.encode())
+
+    def do_GET(self):
+        response = handler({'httpMethod' : 'GET', 'body' : None}, None)
+        return self.sendResponse(response)
+
+    def do_OPTIONS(self):
+        response = handler({'httpMethod' : 'OPTIONS', 'body' : None}, None)
+        return self.sendResponse(response)
+
+    def do_POST(self):
+        content_len = int(self.headers.get('Content-Length'))
+        body = self.rfile.read(content_len)
+        response = handler({'httpMethod' : 'POST', 'body' : body}, None)
+        return self.sendResponse(response)
+
+try:
+    httpd = http.server.HTTPServer(('', 80), HTTPRequestHandler)
+    httpd.serve_forever()
+except KeyboardInterrupt:
+    httpd.shutdown()
+    sys.exit(0)
